@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+token.txt
+env.yaml
+secret.txt
+.env
