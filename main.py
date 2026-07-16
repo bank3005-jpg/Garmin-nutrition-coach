@@ -53,6 +53,8 @@ def slim(obj, max_list=40, depth=0):
         if len(obj) > max_list:
             return f"<{len(obj)} data points omitted>"
         return [slim(v, max_list, depth + 1) for v in obj]
+    if isinstance(obj, float):
+        return round(obj, 3)
     return obj
 
 
@@ -64,16 +66,62 @@ def day(d: str) -> str:
     return d
 
 
+def _tabulate(obj):
+    """Compact a homogeneous list of dicts into cols/rows (keys sent once, not per row)."""
+    if isinstance(obj, list) and len(obj) >= 3 and all(isinstance(x, dict) for x in obj):
+        cols = []
+        for x in obj:
+            for k in x:
+                if k not in cols:
+                    cols.append(k)
+        if len(cols) >= 4:
+            return {"cols": cols, "rows": [[x.get(c) for c in cols] for x in obj]}
+    if isinstance(obj, dict):
+        return {k: _tabulate(v) for k, v in obj.items()}
+    return obj
+
+
+_call_cache = {}
+_usage = {}  # tool -> [calls, chars, cache_hits]
+
+
+def _bump(tool, result):
+    import json as _j
+    u = _usage.setdefault(tool, [0, 0, 0])
+    u[0] += 1
+    try:
+        u[1] += len(_j.dumps(result, default=str))
+    except Exception:
+        pass
+    return u
+
+
 def call(fn, *args):
     global _garmin
+    import sys
+    import time as _t
+    tool = sys._getframe(1).f_code.co_name
+    key = (tool, args)
+    cacheable = tool.startswith("get_")
+    if cacheable:
+        hit = _call_cache.get(key)
+        if hit and _t.time() - hit[0] < 600:
+            _bump(tool, hit[1])[2] += 1
+            return hit[1]
     try:
-        return slim(fn(client())(*args))
+        r = _tabulate(slim(fn(client())(*args)))
     except Exception:
         _garmin = None  # token likely expired in-session: retry with fresh login
         try:
-            return slim(fn(client())(*args))
+            r = _tabulate(slim(fn(client())(*args)))
         except Exception as e:
             return {"error": str(e)}
+    if cacheable and not (isinstance(r, dict) and "error" in r):
+        _call_cache[key] = (_t.time(), r)
+        if len(_call_cache) > 500:
+            _call_cache.clear()
+    _bump(tool, r)
+    return r
 
 
 _SLEEP_NOISE = (
@@ -832,6 +880,8 @@ root = Starlette(
     routes=[
         Route("/", lambda r: PlainTextResponse("ok")),
         Route(f"/{SECRET}/closeday", closeday),
+        Route(f"/{SECRET}/stats", lambda r: __import__("starlette.responses", fromlist=["JSONResponse"]).JSONResponse(
+            {t: {"calls": v[0], "chars": v[1], "cache_hits": v[2]} for t, v in sorted(_usage.items())})),
         Mount(f"/{SECRET}", app=mcp.streamable_http_app()),
     ],
     lifespan=lifespan,
