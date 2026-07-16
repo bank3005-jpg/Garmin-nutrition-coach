@@ -2,7 +2,7 @@
 
 Turn Claude into your personal, data-driven health coach — self-hosted, private, ~$0/month.
 
-Your own MCP server connects Claude to your **Garmin** wearable data (sleep, HRV, workouts, body composition — 32 tools) and your **Notion** workspace (food log, training log, body metrics). A nightly job writes your *real* daily calorie burn from Garmin into your food log automatically, so your deficit numbers are grounded in measurement, not formulas — and a built-in calibration routine checks them against your actual scale weight every two weeks.
+Your own MCP server connects Claude to your **Garmin** wearable data (sleep, HRV, workouts, body composition — 34 tools) and your **Notion** workspace (food log, training log, body metrics). A nightly job writes your *real* daily calorie burn from Garmin into your food log automatically, so your deficit numbers are grounded in measurement, not formulas — and a built-in calibration routine checks them against your actual scale weight every two weeks.
 
 ## What you get
 
