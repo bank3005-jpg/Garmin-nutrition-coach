@@ -1,4 +1,6 @@
-# 🔁 LeanLoop for Garmin
+<p align="center">
+  <img src="assets/leanloop-cover.jpg" alt="LeanLoop for Garmin — private AI nutrition & fitness coach (Garmin + Claude + Notion + Google Cloud)" width="100%">
+</p>
 
 **Turn Claude into your personal, data-driven health coach — self-hosted, private, ~$0/month.**
 
