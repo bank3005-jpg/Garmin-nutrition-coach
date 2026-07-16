@@ -29,7 +29,7 @@ Collect and compute:
 
 Create a parent page `HealthTracker`, then these databases under it. Record every data-source ID you get — they're needed later.
 
-- **FoodLog** — day (title) · date (date) · kcal, p, c, f, exercise_burn, tdee_est, deficit_actual (number) · exercise_type (text)
+- **FoodLog** — day (title) · date (date) · kcal, p, c, f, exercise_burn, tdee_est, deficit_actual, week (number) · exercise_type (text) · sync (select with options: pending=yellow, synced=green, estimated=blue, error=red)
 - **TrainingLog** — session (title) · type (text) · date (date) · distance_km, avg_hr, max_hr, zone4_5_pct, kcal_burn_app, kcal_burn_adjusted (number) · duration, pace, training_effect, body_signals, coach_notes (text)
 - **BodyMetrics** — day (title) · date (date) · w, h, bf, BMI, fatMass, leanMass, smm, bmr, score, visceral, whr (number) · source (select)
 - **FoodLib** — name (title) · serving (text) · kcal, p, c, f (number) · notes (text)
@@ -98,6 +98,9 @@ vals = {
   "NOTION_FOODLOG_DS": "{{FOODLOG_DATA_SOURCE_ID}}",
   "D1_DATE": "{{D1_DATE}}",
   "PLAYBOOK_URL": "https://raw.githubusercontent.com/bank3005-jpg/Garmin-nutrition-coach/stable/playbook.md",
+  "TDEE_BASELINE": "{{BASELINE_TDEE_FROM_PHASE_0}}",
+  "PROGRESS_PAGE_ID": "{{HEALTHTRACKER_PAGE_ID}}",
+  "TZ_NAME": "{{TIMEZONE}}",
 }
 open('env.yaml','w').write("".join(f"{k}: {json.dumps(v)}\n" for k,v in vals.items()))
 print('env.yaml OK')
@@ -141,6 +144,7 @@ D1 (program day 1) = {{D1_DATE}}. Timezone: {{TIMEZONE}}.
 2. Send a food photo → estimate + table + auto-saved to Notion FoodLog
 3. "Coach me today" → one-call snapshot verdict
 4. Cloud Shell: `curl -s "$URL/$(cat secret.txt)/closeday"` → per-day statuses (`no-foodlog-row` is normal before any logging)
+5. After the first nightly run: FoodLog rows get a colored `sync` tag (green=real Garmin TDEE · blue=formula estimate, no-watch day · yellow=awaiting sync · red=sync failed) and a 🔥 cumulative-deficit callout appears on the HealthTracker page
 
 ## Updates
 

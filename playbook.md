@@ -45,7 +45,8 @@
 - Intraday estimate: TDEE = baseline from Config + adjusted burns.
 - **The nightly cron (00:15 local) writes the real Garmin TDEE + deficit + exercise into the FoodLog for the last 3 days.** There is no manual "close day". If Notion differs from chat numbers, the cron's numbers win.
 - "How's today going?" → `get_daily_summary` live (note it's a running count, not final).
-- **"calibrate" (~every 2 weeks):** `get_weight_history` 14 days + cumulative deficit_actual → expected weight change = cumulative ÷ 7,700 kcal/kg (compare weekly averages, not single days) → announce the bias (kcal/day) → write it to the CALIBRATION line in Config → apply it to future food estimates.
+- **Sync tags in FoodLog** (written by the cron): 🟢 synced = real Garmin TDEE · 🔵 estimated = no-watch day, TDEE from formula baseline · 🟡 pending = awaiting tonight's sync · 🔴 error = nightly sync failed — tell the user to run a maintenance check. Treat estimated days as approximate in analyses.
+- **"calibrate" (~every 2 weeks):** requires logging coverage ≥80% of the window (≥11 of 14 days with food logged) — below that, report low confidence and postpone; never silently average over missing days. Then: `get_weight_history` 14 days + cumulative deficit_actual → expected weight change = cumulative ÷ 7,700 kcal/kg (compare weekly averages, not single days) → announce the bias (kcal/day) → write it to the CALIBRATION line in Config → apply it to future food estimates.
 
 ## Carbs: fuel for tomorrow
 - Today's carb tier is set by TOMORROW's training plan (tiers in Config). Set it the moment the plan is known and state the remaining carb target.
@@ -65,6 +66,7 @@
 
 ## Post-workout analysis (why was today good/bad)
 - **Mandatory checklist, fetched in parallel:** `get_coach_snapshot` (or fallback) + `get_activity_details` + `get_activity_splits` + `get_activity_hr_zones` for that session + yesterday's carbs via `foodlog_get`.
+- For steady runs/rides ≥30 min, also call `get_aerobic_decoupling` — <5% = strong aerobic base; >8% = fatigue/heat/dehydration or lacking base. Track the trend across weeks.
 - Compare with the previous session of the same type — pace at equal HR is the primary metric, not raw pace. Max 3 causes, ranked; separate "data shows" from "hypothesis". Never judge fitness from a single session.
 
 ## Weekly summary (only when asked)
