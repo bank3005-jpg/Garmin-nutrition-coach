@@ -383,6 +383,14 @@ def _find_row(d):
     return res[0] if res else None
 
 
+def _deficit_val(props):
+    """deficit_actual may be a number (legacy) or a formula property (v10.2+)."""
+    d = props.get("deficit_actual") or {}
+    if d.get("type") == "formula" or "formula" in d:
+        return (d.get("formula") or {}).get("number")
+    return d.get("number")
+
+
 def _close_one(d):
     row = _find_row(d)
     if not row:
@@ -415,7 +423,7 @@ def _close_one(d):
     old_tag = (((props.get("sync") or {}).get("select")) or {}).get("name")
     if old is None or abs(old - tdee) >= 1 or old_tag != tag:
         new_props["tdee_est"] = {"number": tdee}
-        if kcal is not None:
+        if kcal is not None and (props.get("deficit_actual") or {}).get("type") == "number":
             new_props["deficit_actual"] = {"number": tdee - kcal}
         new_props["sync"] = {"select": {"name": tag}}
     if acts:
@@ -449,7 +457,7 @@ def _update_progress(page_id):
         except Exception:
             r = _notion("POST", f"/data_sources/{FOODLOG_DS}/query", payload, "2025-09-03")
         for row in r.get("results", []):
-            v = (row.get("properties", {}).get("deficit_actual") or {}).get("number")
+            v = _deficit_val(row.get("properties", {}))
             if v is not None:
                 total += v
                 days += 1
@@ -659,7 +667,7 @@ def foodlog_get(date: str = "") -> dict:
     return {"date": d, "day": _day_title(d), "page_id": row["id"],
             "kcal": num("kcal"), "p": num("p"), "c": num("c"), "f": num("f"),
             "exercise_type": txt("exercise_type"), "exercise_burn": num("exercise_burn"),
-            "tdee_est": num("tdee_est"), "deficit_actual": num("deficit_actual")}
+            "tdee_est": num("tdee_est"), "deficit_actual": _deficit_val(p)}
 
 
 @mcp.tool()
@@ -667,14 +675,12 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
                    c: float | None = None, f: float | None = None,
                    exercise_type: str | None = None,
                    exercise_burn: float | None = None,
-                   tdee_est: float | None = None,
-                   deficit_actual: float | None = None) -> dict:
+                   tdee_est: float | None = None) -> dict:
     """Create or update the Notion FoodLog row for a date (one row per day, exact match — never creates duplicates). Only provided fields are written; omitted fields stay unchanged. date=YYYY-MM-DD, default today."""
     d = day(date)
     props = {}
     for k, v in (("kcal", kcal), ("p", p), ("c", c), ("f", f),
-                 ("exercise_burn", exercise_burn), ("tdee_est", tdee_est),
-                 ("deficit_actual", deficit_actual)):
+                 ("exercise_burn", exercise_burn), ("tdee_est", tdee_est)):
         if v is not None:
             props[k] = {"number": v}
     if exercise_type is not None:
