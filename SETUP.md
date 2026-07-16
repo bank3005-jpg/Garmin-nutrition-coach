@@ -34,6 +34,8 @@ Create a parent page `HealthTracker`, then these databases under it. Record ever
 - **BodyMetrics** — day (title) · date (date) · w, h, bf, BMI, fatMass, leanMass, smm, bmr, score, visceral, whr (number) · source (select)
 - **FoodLib** — name (title) · serving (text) · kcal, p, c, f (number) · notes (text)
 - **LessonsArchive** — plain page (estimation corrections get appended here)
+> ⚠️ **Never rename these database property names later** (e.g. `kcal` → `calories`). The server reads them by exact name; renaming silently breaks logging.
+
 - **Config** — plain page, fill from the Phase 0 interview:
 
 ```
@@ -145,6 +147,7 @@ D1 (program day 1) = {{D1_DATE}}. Timezone: {{TIMEZONE}}.
 - Server code: maintainer pushes to `stable` → user (or their Claude) runs in Cloud Shell: `cd ~/garmin-mcp && git pull && gcloud run deploy garmin-mcp --source . --region us-central1 --allow-unauthenticated --memory 512Mi --min-instances 0` (env vars persist). Optional: set up a Cloud Build trigger on `stable` for fully automatic deploys.
 - Coaching rules (playbook.md): update automatically — served live from GitHub, no user action.
 - New tools appear in new chats automatically; old chats keep stale tool lists — just start a new chat.
+- **Want to customize the server code?** Don't edit your local clone — automatic deploys build from GitHub and will overwrite local changes. Fork this repo, point your deployment at your fork, and merge upstream releases manually when you want them.
 
 ## Troubleshooting
 
