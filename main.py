@@ -132,7 +132,6 @@ _SLEEP_NOISE = (
 )
 
 
-@mcp.tool()
 def get_sleep(date: str = "", full: bool = False) -> dict:
     """Sleep for a night: score, duration, deep/light/REM/awake, HRV during sleep, resting HR, body battery change. date=YYYY-MM-DD, default today (i.e. last night). full=true returns raw time-series too."""
     r = call(lambda g: g.get_sleep_data, day(date))
@@ -141,19 +140,16 @@ def get_sleep(date: str = "", full: bool = False) -> dict:
     return r
 
 
-@mcp.tool()
 def get_hrv(date: str = "") -> dict:
     """HRV status for a night: last-night avg, weekly avg, baseline, status. date=YYYY-MM-DD."""
     return call(lambda g: g.get_hrv_data, day(date))
 
 
-@mcp.tool()
 def get_stress(date: str = "") -> dict:
     """All-day stress summary for a date."""
     return call(lambda g: g.get_stress_data, day(date))
 
 
-@mcp.tool()
 def get_body_battery(date: str = "") -> dict:
     """Body Battery levels for a date (charged/drained, high/low)."""
     d = day(date)
@@ -178,38 +174,32 @@ def get_daily_summary(date: str = "", full: bool = False) -> dict:
     return {k: r[k] for k in _DS_KEYS if k in r}
 
 
-@mcp.tool()
 def get_heart_rate(date: str = "") -> dict:
     """Heart rate summary for a date: resting, min, max, last 7 days avg resting."""
     return call(lambda g: g.get_heart_rates, day(date))
 
 
-@mcp.tool()
 def get_spo2(date: str = "") -> dict:
     """Blood oxygen (SpO2) summary for a date."""
     return call(lambda g: g.get_spo2_data, day(date))
 
 
-@mcp.tool()
 def get_respiration(date: str = "") -> dict:
     """Respiration rate summary for a date."""
     return call(lambda g: g.get_respiration_data, day(date))
 
 
-@mcp.tool()
 def get_training_readiness(date: str = "") -> dict:
     """Training readiness score and contributing factors."""
     return call(lambda g: g.get_training_readiness, day(date))
 
 
-@mcp.tool()
 def get_training_status(date: str = "") -> dict:
     """Training status: load, VO2max, acute/chronic load."""
     return call(lambda g: g.get_training_status, day(date))
 
 
-@mcp.tool()
-def get_activities(limit: int = 10) -> list | dict:
+def _activities_recent(limit: int = 10) -> list | dict:
     """Recent activities (runs, rides, workouts...). Returns key fields per activity."""
     def f(g):
         acts = g.get_activities(0, min(limit, 50))
@@ -226,67 +216,56 @@ def get_activities(limit: int = 10) -> list | dict:
     return call(lambda g: lambda: f(g))
 
 
-@mcp.tool()
 def get_body_composition(date: str = "") -> dict:
     """Weight / body composition entries for a date."""
     return call(lambda g: g.get_body_composition, day(date))
 
 
-@mcp.tool()
 def get_activity_details(activity_id: str) -> dict:
     """Full summary of one activity: cadence, power, VO2max, running dynamics, weather. Get activity_id from get_activities."""
     return call(lambda g: g.get_activity, activity_id)
 
 
-@mcp.tool()
 def get_activity_splits(activity_id: str) -> dict:
     """Per-lap/km splits of one activity: pace, HR, cadence per split."""
     return call(lambda g: g.get_activity_splits, activity_id)
 
 
-@mcp.tool()
 def get_activity_hr_zones(activity_id: str) -> list | dict:
     """Time spent in each heart-rate zone for one activity."""
     return call(lambda g: g.get_activity_hr_in_timezones, activity_id)
 
 
-@mcp.tool()
 def get_activities_range(start_date: str, end_date: str = "", activity_type: str = "") -> list | dict:
     """Activities between two dates (YYYY-MM-DD). Optional activity_type: running, cycling, swimming, fitness_equipment..."""
     return call(lambda g: lambda: g.get_activities_by_date(start_date, end_date or None, activity_type or None))
 
 
-@mcp.tool()
 def get_race_predictions() -> dict:
     """Predicted race times for 5K, 10K, half marathon, marathon."""
     return call(lambda g: lambda: g.get_race_predictions())
 
 
-@mcp.tool()
 def get_vo2max(date: str = "") -> dict:
     """VO2max and max metrics for a date."""
     return call(lambda g: g.get_max_metrics, day(date))
 
 
-@mcp.tool()
 def get_fitness_age(date: str = "") -> dict:
     """Fitness age estimate and contributing factors."""
     return call(lambda g: g.get_fitnessage_data, day(date))
 
 
-@mcp.tool()
 def get_endurance_score(date: str = "") -> dict:
     """Endurance score for a date."""
     return call(lambda g: g.get_endurance_score, day(date))
 
 
-@mcp.tool()
 def get_hill_score(date: str = "") -> dict:
     """Hill score (running strength on hills) for a date."""
     return call(lambda g: g.get_hill_score, day(date))
 
 
-@mcp.tool()
 def get_personal_records() -> list | dict:
     """All personal records (fastest 1K/5K/10K, longest run/ride, max steps...)."""
     return call(lambda g: lambda: g.get_personal_record())
@@ -298,25 +277,21 @@ def get_weight_history(start_date: str, end_date: str = "") -> dict:
     return call(lambda g: lambda: g.get_weigh_ins(start_date, end_date or day("")))
 
 
-@mcp.tool()
 def get_hydration(date: str = "") -> dict:
     """Water intake logged for a date."""
     return call(lambda g: g.get_hydration_data, day(date))
 
 
-@mcp.tool()
 def get_blood_pressure(start_date: str = "", end_date: str = "") -> dict:
     """Blood pressure readings between dates (if logged in Garmin Connect)."""
     return call(lambda g: lambda: g.get_blood_pressure(start_date or day(""), end_date or None))
 
 
-@mcp.tool()
 def get_intensity_minutes(date: str = "") -> dict:
     """Intensity minutes (moderate/vigorous) for a date."""
     return call(lambda g: g.get_intensity_minutes_data, day(date))
 
 
-@mcp.tool()
 def get_lactate_threshold() -> dict:
     """Latest lactate threshold (pace and heart rate)."""
     return call(lambda g: lambda: g.get_lactate_threshold(latest=True))
@@ -652,7 +627,6 @@ def _decoupling_calc(recs: list, skip_warmup_min: float = 5.0) -> dict:
     }
 
 
-@mcp.tool()
 def get_activity_stream(activity_id: str, metrics: str = "heart_rate,speed,cadence",
                         max_points: int = 60) -> dict:
     """Downsampled second-by-second sensor streams from an activity's FIT file. metrics: comma list from heart_rate,speed,cadence,power,altitude,distance. Returns ~max_points averaged buckets."""
@@ -677,7 +651,6 @@ def get_activity_stream(activity_id: str, metrics: str = "heart_rate,speed,caden
     return call(lambda g: lambda: f())
 
 
-@mcp.tool()
 def get_aerobic_decoupling(activity_id: str, skip_warmup_min: float = 5.0) -> dict:
     """Aerobic decoupling (Pa:Hr drift) for a steady activity: compares speed/HR efficiency of first vs second half. <5% = strong aerobic base. Use on steady runs/rides, not intervals."""
     def f():
@@ -705,7 +678,6 @@ def _notion_write(method, path, payload):
         return _notion(method, path, payload, "2025-09-03")
 
 
-@mcp.tool()
 def foodlog_get(date: str = "") -> dict:
     """Read the Notion FoodLog row for a date (exact date match). Returns page_id and all fields. date=YYYY-MM-DD, default today."""
     d = day(date)
@@ -730,7 +702,6 @@ def foodlog_get(date: str = "") -> dict:
             "tdee_est": num("tdee_est"), "deficit_actual": _deficit_val(p)}
 
 
-@mcp.tool()
 def foodlog_get_range(start_date: str, end_date: str = "") -> list | dict:
     """Read FoodLog rows for a date range (inclusive, YYYY-MM-DD) in ONE call — compact rows sorted by date. Use this for weekly summaries instead of calling foodlog_get per day."""
     s, e = day(start_date), day(end_date)
@@ -757,7 +728,8 @@ def foodlog_get_range(start_date: str, end_date: str = "") -> list | dict:
             return "".join(t.get("plain_text", "") for t in rt) or None
 
         title = (p.get("day") or {}).get("title") or []
-        out.append({"date": ((p.get("date") or {}).get("date") or {}).get("start"),
+        out.append({"page_id": row["id"],
+                    "date": ((p.get("date") or {}).get("date") or {}).get("start"),
                     "day": "".join(t.get("plain_text", "") for t in title) or None,
                     "kcal": num("kcal"), "p": num("p"), "c": num("c"), "f": num("f"),
                     "exercise_type": txt("exercise_type"), "exercise_burn": num("exercise_burn"),
@@ -808,6 +780,78 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
         return {"date": d, "status": "created", "page_id": r.get("id"), "day": title}
     except Exception as e:
         return {"error": str(e)}
+
+
+_WELLNESS = {"hrv": get_hrv, "stress": get_stress, "body_battery": get_body_battery,
+             "heart_rate": get_heart_rate, "spo2": get_spo2, "respiration": get_respiration,
+             "intensity_minutes": get_intensity_minutes, "hydration": get_hydration,
+             "blood_pressure": get_blood_pressure, "body_composition": get_body_composition,
+             "training_readiness": get_training_readiness, "training_status": get_training_status}
+
+_FITNESS = {"vo2max": get_vo2max, "fitness_age": get_fitness_age,
+            "endurance_score": get_endurance_score, "hill_score": get_hill_score}
+_FITNESS_NODATE = {"race_predictions": get_race_predictions,
+                   "lactate_threshold": get_lactate_threshold,
+                   "personal_records": get_personal_records}
+
+
+@mcp.tool()
+def get_wellness(metric: str, date: str = "", full: bool = False) -> dict | list:
+    """One daily health metric. metric = sleep (last night: score/stages/HRV/RHR/body battery; full=true adds raw series) | hrv | stress | body_battery | heart_rate | spo2 | respiration | intensity_minutes | hydration | blood_pressure | body_composition | training_readiness | training_status. date=YYYY-MM-DD, default today."""
+    m = metric.strip().lower()
+    if m == "sleep":
+        return get_sleep(date, full)
+    fn = _WELLNESS.get(m)
+    if not fn:
+        return {"error": f"unknown metric '{metric}'", "valid": ["sleep"] + sorted(_WELLNESS)}
+    return fn(date)
+
+
+@mcp.tool()
+def get_fitness(metric: str, date: str = "") -> dict | list:
+    """One long-term fitness metric. metric = vo2max | race_predictions (5K..marathon) | fitness_age | endurance_score | hill_score | lactate_threshold | personal_records. date optional (YYYY-MM-DD) where applicable."""
+    m = metric.strip().lower()
+    if m in _FITNESS_NODATE:
+        return _FITNESS_NODATE[m]()
+    fn = _FITNESS.get(m)
+    if not fn:
+        return {"error": f"unknown metric '{metric}'",
+                "valid": sorted(list(_FITNESS) + list(_FITNESS_NODATE))}
+    return fn(date)
+
+
+@mcp.tool()
+def get_activities(start_date: str = "", end_date: str = "", limit: int = 10,
+                   activity_type: str = "") -> list | dict:
+    """Activities (runs, rides, workouts...). No args = latest `limit` with key fields. With start_date (+ optional end_date, activity_type) = every activity in that date range."""
+    if start_date:
+        return get_activities_range(start_date, end_date, activity_type)
+    return _activities_recent(limit)
+
+
+@mcp.tool()
+def get_activity(activity_id: str, view: str = "summary",
+                 metrics: str = "heart_rate,speed,cadence", max_points: int = 60,
+                 skip_warmup_min: float = 5.0) -> dict | list:
+    """One activity, one view. view = summary (cadence/power/dynamics/weather) | splits (per-km pace/HR) | hr_zones (time per HR zone) | stream (downsampled FIT sensor series; metrics/max_points apply) | decoupling (Pa:Hr aerobic drift, steady sessions only; skip_warmup_min applies). Get activity_id from get_activities."""
+    v = view.strip().lower()
+    if v == "summary":
+        return get_activity_details(activity_id)
+    if v == "splits":
+        return get_activity_splits(activity_id)
+    if v == "hr_zones":
+        return get_activity_hr_zones(activity_id)
+    if v == "stream":
+        return get_activity_stream(activity_id, metrics, max_points)
+    if v == "decoupling":
+        return get_aerobic_decoupling(activity_id, skip_warmup_min)
+    return {"error": f"unknown view '{view}'", "valid": ["summary", "splits", "hr_zones", "stream", "decoupling"]}
+
+
+@mcp.tool()
+def foodlog_read(date: str = "", end_date: str = "") -> list | dict:
+    """Read the Notion FoodLog: one day (default today) or a range via end_date. Returns a list of compact rows (page_id, day, kcal, p, c, f, exercise, tdee_est, deficit_actual, sync) sorted by date — empty list = nothing logged."""
+    return foodlog_get_range(date, end_date or date)
 
 
 _playbook_cache = {"text": "", "ts": 0.0}
