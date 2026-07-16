@@ -199,21 +199,24 @@ def get_training_status(date: str = "") -> dict:
     return call(lambda g: g.get_training_status, day(date))
 
 
+_ACT_KEEP = (
+    "activityId", "activityName", "startTimeLocal", "distance",
+    "duration", "calories", "averageHR", "maxHR", "averageSpeed",
+    "elevationGain", "activityType", "aerobicTrainingEffect",
+    "anaerobicTrainingEffect", "avgStressLevel",
+    "averageRunningCadenceInStepsPerMinute", "maxRunningCadenceInStepsPerMinute",
+    "avgPower", "vO2MaxValue", "avgVerticalOscillation",
+    "avgGroundContactTime", "avgStrideLength", "maxSpeed", "movingDuration",
+)
+
+
+def _act_slim(acts):
+    return [{k: a.get(k) for k in _ACT_KEEP if a.get(k) is not None} for a in (acts or [])]
+
+
 def _activities_recent(limit: int = 10) -> list | dict:
     """Recent activities (runs, rides, workouts...). Returns key fields per activity."""
-    def f(g):
-        acts = g.get_activities(0, min(limit, 50))
-        keep = (
-            "activityId", "activityName", "startTimeLocal", "distance",
-            "duration", "calories", "averageHR", "maxHR", "averageSpeed",
-            "elevationGain", "activityType", "aerobicTrainingEffect",
-            "anaerobicTrainingEffect", "avgStressLevel",
-            "averageRunningCadenceInStepsPerMinute", "maxRunningCadenceInStepsPerMinute",
-            "avgPower", "vO2MaxValue", "avgVerticalOscillation",
-            "avgGroundContactTime", "avgStrideLength", "maxSpeed", "movingDuration",
-        )
-        return [{k: a.get(k) for k in keep if a.get(k) is not None} for a in acts]
-    return call(lambda g: lambda: f(g))
+    return call(lambda g: lambda: _act_slim(g.get_activities(0, min(limit, 50))))
 
 
 def get_body_composition(date: str = "") -> dict:
@@ -238,7 +241,7 @@ def get_activity_hr_zones(activity_id: str) -> list | dict:
 
 def get_activities_range(start_date: str, end_date: str = "", activity_type: str = "") -> list | dict:
     """Activities between two dates (YYYY-MM-DD). Optional activity_type: running, cycling, swimming, fitness_equipment..."""
-    return call(lambda g: lambda: g.get_activities_by_date(start_date, end_date or None, activity_type or None))
+    return call(lambda g: lambda: _act_slim(g.get_activities_by_date(start_date, end_date or None, activity_type or None)))
 
 
 def get_race_predictions() -> dict:
@@ -852,6 +855,195 @@ def get_activity(activity_id: str, view: str = "summary",
 def foodlog_read(date: str = "", end_date: str = "") -> list | dict:
     """Read the Notion FoodLog: one day (default today) or a range via end_date. Returns a list of compact rows (page_id, day, kcal, p, c, f, exercise, tdee_est, deficit_actual, sync) sorted by date — empty list = nothing logged."""
     return foodlog_get_range(date, end_date or date)
+
+
+def _weights_kg(wi):
+    """Tolerant (date, kg) extractor from get_weigh_ins output."""
+    pts = []
+    try:
+        for s in (wi or {}).get("dailyWeightSummaries", []):
+            d = s.get("summaryDate")
+            w = None
+            for m in (s.get("allWeightMetrics") or []):
+                if m.get("weight"):
+                    w = m["weight"] / 1000.0
+                    break
+            if w is None and (s.get("latestWeight") or {}).get("weight"):
+                w = s["latestWeight"]["weight"] / 1000.0
+            if d and w:
+                pts.append((d, round(w, 2)))
+    except Exception:
+        pass
+    return sorted(pts)
+
+
+def _avg(vals):
+    vals = [v for v in vals if v is not None]
+    return round(sum(vals) / len(vals), 1) if vals else None
+
+
+@mcp.tool()
+def weekly_report(days: int = 7) -> dict:
+    """Pre-digested weekly review in ONE call: food averages + logging coverage + cron watchdog, activity list + totals, 14-day weight trend, VO2max. Coach: narrate and compare against Config targets — do NOT re-fetch the raw data behind this."""
+    from datetime import date as _d, timedelta as _td
+    today = _d.today()
+    start = (today - _td(days=days - 1)).isoformat()
+    end = today.isoformat()
+    out = {"window": f"{start}..{end}"}
+    rows = foodlog_get_range(start, end)
+    if isinstance(rows, dict):
+        out["food_error"] = rows.get("error")
+        rows = []
+    logged = [r for r in rows if r.get("kcal") is not None]
+    out["food"] = {
+        "days_logged": len(logged), "days_in_window": days,
+        "avg_kcal": _avg([r.get("kcal") for r in logged]),
+        "avg_p": _avg([r.get("p") for r in logged]),
+        "avg_c": _avg([r.get("c") for r in logged]),
+        "avg_f": _avg([r.get("f") for r in logged]),
+        "avg_deficit": _avg([r.get("deficit_actual") for r in logged]),
+        "cron_missing_tdee": sum(1 for r in logged
+                                 if r.get("tdee_est") is None and r.get("date") != end),
+    }
+
+    def f(g):
+        res = {}
+        try:
+            acts = _act_slim(g.get_activities_by_date(start, end))
+            res["activities"] = [{"name": a.get("activityName"),
+                                  "start": a.get("startTimeLocal"),
+                                  "type": ((a.get("activityType") or {}).get("typeKey")),
+                                  "km": round((a.get("distance") or 0) / 1000, 2),
+                                  "min": round((a.get("duration") or 0) / 60),
+                                  "kcal": a.get("calories"), "avgHR": a.get("averageHR"),
+                                  "TE_aer": a.get("aerobicTrainingEffect")} for a in acts]
+            res["activity_totals"] = {"sessions": len(acts),
+                                      "km": round(sum((a.get("distance") or 0) for a in acts) / 1000, 1),
+                                      "kcal": round(sum((a.get("calories") or 0) for a in acts))}
+        except Exception as e:
+            res["activities_error"] = str(e)
+        try:
+            w14 = (today - _td(days=13)).isoformat()
+            pts = _weights_kg(g.get_weigh_ins(w14, end))
+            half = len(pts) // 2 if len(pts) >= 2 else 0
+            res["weight"] = {"points": len(pts),
+                             "first_half_avg": _avg([p[1] for p in pts[:half]]) if half else None,
+                             "last_half_avg": _avg([p[1] for p in pts[half:]]) if half else None,
+                             "latest": pts[-1][1] if pts else None}
+        except Exception as e:
+            res["weight_error"] = str(e)
+        try:
+            res["vo2max"] = g.get_max_metrics(end)
+        except Exception as e:
+            res["vo2max_error"] = str(e)
+        return res
+
+    r = call(lambda g: lambda: f(g))
+    out.update(r if isinstance(r, dict) else {"garmin_error": r})
+    return out
+
+
+@mcp.tool()
+def analyze_activity(activity_id: str = "") -> dict:
+    """Full post-workout analysis bundle in ONE call: session summary, per-split pace/HR, HR zones, aerobic decoupling (steady sessions >=25 min), the previous session of the SAME type for comparison, and the day-before carbs. Default = latest activity. Coach: compare pace at equal HR vs previous, max 3 ranked causes — do NOT re-fetch the raw data behind this."""
+    from datetime import date as _d, timedelta as _td
+
+    def f(g):
+        res = {}
+        if activity_id:
+            meta = g.get_activity(activity_id) or {}
+            aid = activity_id
+        else:
+            latest = (g.get_activities(0, 1) or [{}])[0]
+            aid = str(latest.get("activityId", ""))
+            meta = latest
+        if not aid:
+            return {"error": "no activity found"}
+        tkey = ((meta.get("activityType") or {}).get("typeKey")) or ""
+        res["session"] = {k: meta.get(k) for k in _ACT_KEEP if meta.get(k) is not None}
+        res["session"]["typeKey"] = tkey
+        start_local = str(meta.get("startTimeLocal") or "")[:10]
+        try:
+            laps = (g.get_activity_splits(aid) or {}).get("lapDTOs") or []
+            res["splits"] = [{"km": round((l.get("distance") or 0) / 1000, 2),
+                              "min": round((l.get("duration") or 0) / 60, 2),
+                              "avgHR": l.get("averageHR")} for l in laps]
+        except Exception as e:
+            res["splits_error"] = str(e)
+        try:
+            res["hr_zones"] = g.get_activity_hr_in_timezones(aid)
+        except Exception as e:
+            res["hr_zones_error"] = str(e)
+        try:
+            if (meta.get("duration") or 0) >= 1500:
+                res["decoupling"] = _decoupling_calc(_fit_records(aid))
+            else:
+                res["decoupling"] = "skipped (<25 min)"
+        except Exception as e:
+            res["decoupling_error"] = str(e)
+        try:
+            if start_local and tkey:
+                back = (_d.fromisoformat(start_local) - _td(days=60)).isoformat()
+                prev = [a for a in (g.get_activities_by_date(back, start_local, tkey) or [])
+                        if str(a.get("activityId")) != str(aid)
+                        and str(a.get("startTimeLocal", "")) < str(meta.get("startTimeLocal", ""))]
+                if prev:
+                    p = sorted(prev, key=lambda a: str(a.get("startTimeLocal", "")))[-1]
+                    res["previous_same_type"] = {k: p.get(k) for k in _ACT_KEEP if p.get(k) is not None}
+                else:
+                    res["previous_same_type"] = None
+        except Exception as e:
+            res["previous_error"] = str(e)
+        res["_date"] = start_local
+        return res
+
+    r = call(lambda g: lambda: f(g))
+    if isinstance(r, dict) and r.get("_date"):
+        try:
+            prev_day = (_d.fromisoformat(r["_date"]) - _td(days=1)).isoformat()
+            rows = foodlog_get_range(prev_day, prev_day)
+            r["day_before_carbs_g"] = rows[0].get("c") if isinstance(rows, list) and rows else None
+        except Exception:
+            pass
+        r.pop("_date", None)
+    return r
+
+
+@mcp.tool()
+def calibrate_report(days: int = 14) -> dict:
+    """Everything the 'calibrate' routine needs in ONE call: logging coverage, cumulative deficit, weigh-in trend, expected vs actual weight change, and the estimation bias (kcal/day). Coach: check coverage_ok, announce the bias, write it to the CALIBRATION line in Config."""
+    from datetime import date as _d, timedelta as _td
+    today = _d.today()
+    start = (today - _td(days=days - 1)).isoformat()
+    end = today.isoformat()
+    rows = foodlog_get_range(start, end)
+    if isinstance(rows, dict):
+        return {"error": rows.get("error")}
+    logged = [r for r in rows if r.get("kcal") is not None]
+    deficits = [r.get("deficit_actual") for r in rows if r.get("deficit_actual") is not None]
+    cum = round(sum(deficits))
+    out = {"window": f"{start}..{end}",
+           "days_logged": len(logged), "days_required": max(1, round(days * 0.8)),
+           "coverage_ok": len(logged) >= round(days * 0.8),
+           "cumulative_deficit_kcal": cum,
+           "expected_weight_change_kg": round(-cum / 7700, 2)}
+
+    def f(g):
+        return {"points": _weights_kg(g.get_weigh_ins(start, end))}
+
+    r = call(lambda g: lambda: f(g))
+    pts = r.get("points", []) if isinstance(r, dict) else []
+    half = len(pts) // 2 if len(pts) >= 2 else 0
+    if half:
+        first, last = _avg([p[1] for p in pts[:half]]), _avg([p[1] for p in pts[half:]])
+        actual = round(last - first, 2)
+        out["weight"] = {"points": len(pts), "first_half_avg": first,
+                         "last_half_avg": last, "actual_change_kg": actual}
+        out["bias_kcal_per_day"] = round((actual - out["expected_weight_change_kg"]) * 7700 / days)
+        out["bias_meaning"] = "positive = real intake ~ that many kcal/day HIGHER than logged; add it to future estimates"
+    else:
+        out["weight"] = {"points": len(pts), "note": "not enough weigh-ins for a trend"}
+    return out
 
 
 _playbook_cache = {"text": "", "ts": 0.0}

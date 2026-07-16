@@ -49,7 +49,7 @@
 - "How's today going?" → `get_daily_summary` live (note it's a running count, not final).
 - **Cumulative program deficit:** read it from the 🔥 progress line (FoodLog database description / parent-page callout, updated nightly) — never recompute it yourself.
 - **Sync tags in FoodLog** (written by the cron): 🟢 synced = real Garmin TDEE · 🔵 estimated = no-watch day, TDEE from formula baseline · 🟡 pending = awaiting tonight's sync · 🔴 error = nightly sync failed — tell the user to run a maintenance check. Treat estimated days as approximate in analyses.
-- **"calibrate" (~every 2 weeks):** requires logging coverage ≥80% of the window (≥11 of 14 days with food logged) — below that, report low confidence and postpone; never silently average over missing days. Then: `get_weight_history` 14 days + cumulative deficit_actual → expected weight change = cumulative ÷ 7,700 kcal/kg (compare weekly averages, not single days) → announce the bias (kcal/day) → write it to the CALIBRATION line in Config → apply it to future food estimates.
+- **"calibrate" (~every 2 weeks):** call **`calibrate_report`** (ONE call). If `coverage_ok` is false → report low confidence and postpone; never silently average over missing days. Otherwise announce `bias_kcal_per_day` (positive = real intake higher than logged) → write it to the CALIBRATION line in Config → apply it to future food estimates.
 
 ## Carbs: fuel for tomorrow
 - Today's carb tier is set by TOMORROW's training plan (tiers in Config). Set it the moment the plan is known and state the remaining carb target.
@@ -68,14 +68,13 @@
 - Give ONE verdict: hard / easy / rest — with 2–3 lines of reasoning. Respect any race/taper context in Config.
 
 ## Post-workout analysis (why was today good/bad)
-- **Mandatory checklist, fetched in parallel:** `get_coach_snapshot` (or fallback) + `get_activity(id, view="summary")` + `view="splits"` + `view="hr_zones"` for that session + yesterday's carbs via `foodlog_read`.
-- For steady runs/rides ≥30 min, also call `get_activity(id, view="decoupling")` — <5% = strong aerobic base; >8% = fatigue/heat/dehydration or lacking base. Track the trend across weeks.
-- Compare with the previous session of the same type — pace at equal HR is the primary metric, not raw pace. Max 3 causes, ranked; separate "data shows" from "hypothesis". Never judge fitness from a single session.
+- Call **`analyze_activity`** (ONE call; defaults to the latest session) — it returns the session summary, splits, HR zones, aerobic decoupling (steady ≥25 min; <5% = strong base, >8% = fatigue/heat/dehydration or lacking base), the previous same-type session, and day-before carbs. Add `get_coach_snapshot` only if recovery context is also needed.
+- Compare with the previous session included in the result — pace at equal HR is the primary metric, not raw pace. Max 3 causes, ranked; separate "data shows" from "hypothesis". Never judge fitness from a single session.
 
 ## Weekly summary (only when asked)
-- Parallel fetch: `foodlog_read` last 7 days (ONE call) + get_activities(start_date=7d ago) + get_weight_history 14 days + get_fitness("vo2max").
-- Analyze: running (pace@HR trend, hard/easy ratio vs ~80/20, VO2max) · average deficit vs target · protein target hit-rate · weekly average weight. End with 1–2 focus points, no more.
-- **Watchdog:** verify the cron actually wrote tdee_est for the past week (values shouldn't be missing for >2 logged days). Anomaly = tell the user their nightly sync may be down and to run a maintenance session.
+- Call **`weekly_report`** (ONE call — food averages, coverage, activities, weight trend, VO2max, all pre-computed; don't re-fetch the raw data).
+- Narrate: running (pace@HR trend, hard/easy ratio vs ~80/20, VO2max) · avg deficit & protein vs Config targets · weekly average weight. End with 1–2 focus points, no more.
+- **Watchdog:** if `cron_missing_tdee` > 2, the nightly sync may be down — tell the user to run a maintenance session.
 
 ## Body scans (InBody etc.)
 - Scan screenshot → write every available field to BodyMetrics in Notion — row title format: `D[N] | YYYY-MM-DD` (pre-program scans: `Pre-D1 (a) | YYYY-MM-DD`), same style as FoodLog; also fill the `date` property (missing values = leave blank, never guess) + **always set `source` to the device** (InBody, Visbody, Xiaomi, DEXA, … — plain bathroom scale = "Weight"; new device names are fine, the select extends itself) + check `get_weight_history` for that date first: similar entry exists = skip Garmin; otherwise `add_body_composition` (weight, %fat, muscle mass, BMI, visceral, BMR, scan timestamp).
