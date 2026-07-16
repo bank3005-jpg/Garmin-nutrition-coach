@@ -30,6 +30,7 @@ Collect and compute:
 Create a parent page `HealthTracker`, then these databases under it. Record every data-source ID you get — they're needed later.
 
 - **FoodLog** — day (title) · date (date) · kcal, p, c, f, exercise_burn, tdee_est (number) · deficit_actual (**formula**: `prop("tdee_est") - prop("kcal")` — computes itself, the server never writes it) · exercise_type (text) · sync (select with options: pending=yellow, synced=green, estimated=blue, error=red)
+  > Installer note: add `deficit_actual` **after** `tdee_est` and `kcal` exist (the formula references them). If formula creation fails for any reason, create it as a plain **number** instead — the system still works fully (the server computes and writes it on number columns); it can be converted to a formula later.
 - **TrainingLog** — session (title) · type (text) · date (date) · distance_km, avg_hr, max_hr, zone4_5_pct, kcal_burn_app, kcal_burn_adjusted (number) · duration, pace, training_effect, body_signals, coach_notes (text)
 - **BodyMetrics** — day (title) · date (date) · w, h, bf, BMI, fatMass, leanMass, smm, bmr, score, visceral, whr (number) · source (select)
 - **FoodLib** — name (title) · serving (text) · kcal, p, c, f (number) · notes (text)
@@ -138,7 +139,7 @@ LessonsArchive={{ID}} Config={{ID}}
 D1 (program day 1) = {{D1_DATE}}. Timezone: {{TIMEZONE}}.
 ```
 
-## Phase 6 — Verify (Claude runs these in a NEW chat in the project)
+## Phase 6 — Verify (Claude runs these in a NEW chat inside the Claude Project from Phase 5 — old chats have a stale tool list)
 
 1. "How did I sleep last night?" → real sleep data appears
 2. Send a food photo → estimate + table + auto-saved to Notion FoodLog

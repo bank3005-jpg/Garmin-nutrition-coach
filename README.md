@@ -34,7 +34,7 @@ Open Claude and paste:
 Read https://github.com/bank3005-jpg/LeanLoop-for-Garmin/blob/stable/SETUP.md and set this up for me
 ```
 
-Claude interviews you (goals, body stats), creates your Notion databases, and walks you through the cloud steps. **45–60 minutes, one time.**
+Claude interviews you (goals, body stats), creates your Notion databases, walks you through the cloud steps, and wires everything into a **Claude Project** — a dedicated space where your coach lives, with your server and Notion connected and your coaching rules loaded automatically in every chat. **45–60 minutes, one time.**
 
 **Prerequisites:** a Garmin watch · Notion account (free) · Google account with billing enabled (stays within free tier) · Claude plan with custom connectors · Windows or macOS computer for one step.
 
