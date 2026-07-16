@@ -40,6 +40,10 @@ Prerequisites: a Garmin watch, Notion account, Google account with billing enabl
 - Garmin credentials never pass through chat; tokens live only in your Cloud Run env vars
 - `stable` branch = tested releases; `main` = development
 
+## Disclaimer
+
+This is a personal tracking and coaching tool, not medical advice or a medical device. Calorie and macro estimates are approximations. Consult a healthcare professional for medical decisions, and stop training and seek care for any concerning symptoms.
+
 ## License
 
 MIT

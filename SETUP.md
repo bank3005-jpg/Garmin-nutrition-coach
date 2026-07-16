@@ -12,7 +12,7 @@ Collect and compute:
 
 1. Name, height (cm), weight (kg), age, sex, timezone
 2. Goal (fat loss / recomp / performance) and any event date
-3. Garmin watch model (must sync to Garmin Connect) · does the account have 2FA/MFA?
+3. Garmin watch model (must sync to Garmin Connect) · does the account have 2FA/MFA? · **Garmin China accounts are not supported** (separate system)
 4. Computer OS: Windows or macOS (needed in Phase 3)
 5. Program start date (today is fine) → this becomes `D1_DATE`
 6. Compute and confirm with the user: BMR (Mifflin-St Jeor), baseline TDEE (BMR × activity factor 1.2–1.4), targets: kcal range, protein 1.6–2.2 g/kg, fat ≥0.8 g/kg, carbs = remainder (3 tiers: heavy/medium/light for carb cycling), deficit target if cutting (300–600).
@@ -153,6 +153,8 @@ D1 (program day 1) = {{D1_DATE}}. Timezone: {{TIMEZONE}}.
 
 | Symptom | Cause → fix |
 |---|---|
+| Deploy fails mentioning billing | Billing not actually enabled on the project → console.cloud.google.com → Billing → link a billing account, then redeploy |
+| Windows: `irm \| iex` blocked / "running scripts is disabled" | PowerShell execution policy → run `Set-ExecutionPolicy -Scope Process Bypass` first, then retry |
 | Garmin login 429 | Cloud IP or too many attempts → run token step on home computer; wait 60 min between attempts |
 | `Invalid token` / all Garmin tools fail | Token expired (~1 yr) → redo Phase 3, then update `GARMINTOKENS_B64` in env.yaml and redeploy |
 | Notion 401 in closeday | Wrong/rotated Notion secret → recheck it's the ~50-char `ntn_` secret; update env and redeploy |
