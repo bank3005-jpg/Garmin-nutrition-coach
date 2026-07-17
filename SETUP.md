@@ -119,13 +119,15 @@ Then schedulers + the final URL:
 gcloud services enable cloudscheduler.googleapis.com
 URL=$(gcloud run services describe garmin-mcp --region us-central1 --format 'value(status.url)')
 gcloud scheduler jobs create http garmin-warm --schedule="*/5 * * * *" --uri="$URL/" --http-method=GET --location=us-central1
-gcloud scheduler jobs create http garmin-closeday --schedule="15 0 * * *" --time-zone="{{TIMEZONE}}" --uri="$URL/$(cat secret.txt)/closeday" --http-method=GET --location=us-central1
+gcloud scheduler jobs create http garmin-closeday --schedule="0 3 * * *" --time-zone="{{TIMEZONE}}" --uri="$URL/$(cat secret.txt)/closeday" --http-method=GET --location=us-central1
 echo "CONNECTOR URL (keep secret): $URL/$(cat secret.txt)/mcp"
 ```
 
+(The close-day job runs at **03:00 local** — late enough that the watch has synced the finished day's data overnight, so TDEE is written correctly on the first try. The job also self-heals the last 3 days each night, so a late-syncing day gets corrected automatically anyway. Adjust the hour if the user wakes/syncs much later.)
+
 **Never set `--min-instances` above 0** (that leaves the free tier, ~$8–10/month).
 
-**Immediately self-check the deploy (catches wrong Notion token/IDs in seconds instead of at midnight):**
+**Immediately self-check the deploy (catches wrong Notion token/IDs in seconds instead of hours later when the nightly job runs):**
 
 ```bash
 curl -s "$URL/$(cat secret.txt)/health"; echo
