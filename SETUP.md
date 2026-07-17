@@ -97,6 +97,7 @@ vals = {
   "NOTION_TOKEN": "{{NOTION_SECRET}}",
   "NOTION_FOODLOG_DS": "{{FOODLOG_DATA_SOURCE_ID}}",
   "NOTION_FOODLIB_DS": "{{FOODLIB_DATA_SOURCE_ID}}",
+  "NOTION_TRAININGLOG_DS": "{{TRAININGLOG_DATA_SOURCE_ID}}",
   "CONFIG_PAGE_ID": "{{CONFIG_PAGE_ID}}",
   "D1_DATE": "{{D1_DATE}}",
   "PLAYBOOK_URL": "https://raw.githubusercontent.com/bank3005-jpg/LeanLoop-for-Garmin/stable/playbook.md",

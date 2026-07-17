@@ -423,6 +423,7 @@ import json as _json
 import urllib.request as _url
 
 FOODLOG_DS = os.environ.get("NOTION_FOODLOG_DS", "")
+TRAINING_DS = os.environ.get("NOTION_TRAININGLOG_DS", "")
 
 
 def _notion(method, path, payload, version):
@@ -458,6 +459,100 @@ def _deficit_val(props):
     return d.get("number")
 
 
+_CARDIO = ("running", "cycling", "walking", "treadmill_running",
+           "indoor_cycling", "lap_swimming", "open_water_swimming")
+
+
+def _fmt_dur(sec):
+    sec = int(sec or 0)
+    h, m, s = sec // 3600, (sec % 3600) // 60, sec % 60
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def _fmt_pace(sec, km):
+    if not km:
+        return ""
+    p = int((sec or 0) / km)
+    return f"{p // 60}:{p % 60:02d} /km"
+
+
+def _tl_type(a):
+    name = (a.get("activityName") or "").lower()
+    t = ((a.get("activityType") or {}).get("typeKey") or "").lower()
+    if "hyrox" in name:
+        return "hyrox-sim"
+    if "muay" in name or "boxing" in t or "kickbox" in t:
+        return "muay-thai"
+    if "run" in t or "run" in name:
+        return "run"
+    if "cycl" in t or "bik" in t or "ride" in name:
+        return "ride"
+    if "walk" in t or "hik" in t:
+        return "walk"
+    return "weights"
+
+
+def _log_training(d, acts):
+    """Cron auto-creates a bare TrainingLog row per Garmin activity (idempotent by
+    date+session title). Coach enriches coach_notes/body_signals later in chat."""
+    if not TRAINING_DS or not acts:
+        return 0
+    existing = set()
+    try:
+        flt = {"filter": {"property": "date", "date": {"equals": d}}, "page_size": 100}
+        try:
+            r = _notion("POST", f"/databases/{TRAINING_DS}/query", flt, "2022-06-28")
+        except Exception:
+            r = _notion("POST", f"/data_sources/{TRAINING_DS}/query", flt, "2025-09-03")
+        for row in r.get("results", []):
+            ti = (row.get("properties", {}).get("session") or {}).get("title") or []
+            existing.add("".join(x.get("plain_text", "") for x in ti))
+    except Exception:
+        return 0
+    made = 0
+    for a in acts:
+        name = a.get("activityName") or ((a.get("activityType") or {}).get("typeKey") or "activity")
+        if name in existing:
+            continue
+        tkey = ((a.get("activityType") or {}).get("typeKey") or "")
+        dur = a.get("duration") or 0
+        km = (a.get("distance") or 0) / 1000.0
+        cals = a.get("calories") or 0
+        props = {
+            "session": {"title": [{"text": {"content": name[:200]}}]},
+            "date": {"date": {"start": d}},
+            "type": {"select": {"name": _tl_type(a)}},
+            "kcal_burn_app": {"number": round(cals)},
+            "kcal_burn_adjusted": {"number": round(cals * (0.90 if tkey in _CARDIO else 0.85))},
+        }
+        if km:
+            props["distance_km"] = {"number": round(km, 2)}
+        if dur:
+            props["duration"] = {"rich_text": [{"text": {"content": _fmt_dur(dur)}}]}
+        if km and dur:
+            props["pace"] = {"rich_text": [{"text": {"content": _fmt_pace(dur, km)}}]}
+        if a.get("averageHR"):
+            props["avg_hr"] = {"number": round(a["averageHR"])}
+        if a.get("maxHR"):
+            props["max_hr"] = {"number": round(a["maxHR"])}
+        if a.get("aerobicTrainingEffect") is not None:
+            props["training_effect_aerobic"] = {"number": round(a["aerobicTrainingEffect"], 1)}
+        if a.get("anaerobicTrainingEffect") is not None:
+            props["training_effect_anaerobic"] = {"number": round(a["anaerobicTrainingEffect"], 1)}
+        try:
+            try:
+                _notion("POST", "/pages",
+                        {"parent": {"database_id": TRAINING_DS}, "properties": props}, "2022-06-28")
+            except Exception:
+                _notion("POST", "/pages",
+                        {"parent": {"type": "data_source_id", "data_source_id": TRAINING_DS},
+                         "properties": props}, "2025-09-03")
+            made += 1
+        except Exception:
+            pass
+    return made
+
+
 def _close_one(d):
     row = _find_row(d)
     if not row:
@@ -474,6 +569,10 @@ def _close_one(d):
         acts = client().get_activities_by_date(d, d) or []
     except Exception:
         acts = []
+    try:
+        trained = _log_training(d, acts)
+    except Exception:
+        trained = 0
     new_props = {}
     if total:
         tdee = round(total)
@@ -494,22 +593,20 @@ def _close_one(d):
             new_props["deficit_actual"] = {"number": tdee - kcal}
         new_props["sync"] = {"select": {"name": tag}}
     if acts:
-        cardio = ("running", "cycling", "walking", "treadmill_running",
-                  "indoor_cycling", "lap_swimming", "open_water_swimming")
         names, burn = [], 0.0
         for a in acts:
             t = ((a.get("activityType") or {}).get("typeKey") or "")
-            burn += (a.get("calories") or 0) * (0.90 if t in cardio else 0.85)
+            burn += (a.get("calories") or 0) * (0.90 if t in _CARDIO else 0.85)
             names.append(a.get("activityName") or t)
         if not ((props.get("exercise_type") or {}).get("rich_text") or []):
             new_props["exercise_type"] = {"rich_text": [{"text": {"content": ", ".join(names)[:200]}}]}
         if (props.get("exercise_burn") or {}).get("number") in (None, 0):
             new_props["exercise_burn"] = {"number": round(burn)}
     if not new_props:
-        return {"date": d, "status": "already-synced", "tdee": tdee}
+        return {"date": d, "status": "already-synced", "tdee": tdee, "trained": trained}
     _notion_write("PATCH", "/pages/" + row["id"], {"properties": new_props})
     return {"date": d, "status": "updated", "tdee": tdee, "tag": tag,
-            "wrote": list(new_props)}
+            "wrote": list(new_props), "trained": trained}
 
 
 def _update_progress(page_id):
