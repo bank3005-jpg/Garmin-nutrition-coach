@@ -20,7 +20,7 @@ Collect and compute:
 
 ## Phase 1 — Prerequisites (human checks)
 
-- Claude plan with custom connectors support
+- **Claude Pro plan (or Max/Team/Enterprise)** — LeanLoop needs TWO custom connectors (Garmin + Notion) enabled at once; the Free plan allows only one custom connector, so it can't run the full system. For the install session use Sonnet at **Medium** effort (many IDs to track); daily food logging afterwards runs fine on **Low**.
 - Notion account (free is fine) + Notion connector enabled in Claude
 - Google account **with billing enabled** (console.cloud.google.com → Billing; card required, won't be charged within free tier)
 - Their computer available for one step (Garmin login)
