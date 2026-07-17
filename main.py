@@ -497,7 +497,7 @@ def _log_training(d, acts):
     date+session title). Coach enriches coach_notes/body_signals later in chat."""
     if not TRAINING_DS or not acts:
         return 0
-    existing = set()
+    existing = []
     try:
         flt = {"filter": {"property": "date", "date": {"equals": d}}, "page_size": 100}
         try:
@@ -505,18 +505,36 @@ def _log_training(d, acts):
         except Exception:
             r = _notion("POST", f"/data_sources/{TRAINING_DS}/query", flt, "2025-09-03")
         for row in r.get("results", []):
-            ti = (row.get("properties", {}).get("session") or {}).get("title") or []
-            existing.add("".join(x.get("plain_text", "") for x in ti))
+            rp = row.get("properties", {})
+            ti = (rp.get("session") or {}).get("title") or []
+            existing.append({"title": "".join(x.get("plain_text", "") for x in ti).lower(),
+                             "km": (rp.get("distance_km") or {}).get("number")})
     except Exception:
         return 0
+
+    def _is_dup(name, km):
+        """A Garmin activity already has a row if an existing row's title contains
+        its name (coach titles it 'D123 <name> 5.16km') and — when both have a
+        distance — the distances roughly match (guards against two same-named runs)."""
+        n = (name or "").lower().strip()
+        for e in existing:
+            if not n:
+                continue
+            if e["title"] == n or n in e["title"]:
+                if km and e["km"]:
+                    if abs(km - e["km"]) < 0.2:
+                        return True
+                else:
+                    return True
+        return False
     made = 0
     for a in acts:
         name = a.get("activityName") or ((a.get("activityType") or {}).get("typeKey") or "activity")
-        if name in existing:
-            continue
         tkey = ((a.get("activityType") or {}).get("typeKey") or "")
         dur = a.get("duration") or 0
         km = (a.get("distance") or 0) / 1000.0
+        if _is_dup(name, round(km, 2) if km else None):
+            continue
         cals = a.get("calories") or 0
         props = {
             "session": {"title": [{"text": {"content": name[:200]}}]},
