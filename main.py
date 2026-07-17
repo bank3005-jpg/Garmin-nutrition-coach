@@ -694,6 +694,43 @@ def _notion_write(method, path, payload):
         return _notion(method, path, payload, "2025-09-03")
 
 
+def _parse_meals(page_id):
+    """Read the meal table already on a FoodLog day page → list of [time, item, kcal, p, c, f]."""
+    if not page_id:
+        return []
+    bid = page_id.replace("-", "")
+    try:
+        kids = _notion("GET", f"/blocks/{bid}/children?page_size=50", None, "2022-06-28")
+    except Exception:
+        return []
+    out = []
+    for b in kids.get("results", []):
+        if b.get("type") != "table":
+            continue
+        tid = b["id"].replace("-", "")
+        try:
+            rows = _notion("GET", f"/blocks/{tid}/children?page_size=100", None, "2022-06-28")
+        except Exception:
+            return []
+        for r in rows.get("results", []):
+            if r.get("type") != "table_row":
+                continue
+            cells = r.get("table_row", {}).get("cells", [])
+
+            def _t(cell):
+                return "".join(x.get("plain_text", "") for x in cell).strip()
+
+            v = [_t(c) for c in cells]
+            if len(v) < 6 or v[0] == "เวลา" or v[1] == "รวม":
+                continue
+            try:
+                out.append([v[0], v[1], float(v[2]), float(v[3]), float(v[4]), float(v[5])])
+            except Exception:
+                pass
+        break
+    return out
+
+
 def foodlog_get(date: str = "") -> dict:
     """Read the Notion FoodLog row for a date (exact date match). Returns page_id and all fields. date=YYYY-MM-DD, default today."""
     d = day(date)
@@ -715,7 +752,8 @@ def foodlog_get(date: str = "") -> dict:
     return {"date": d, "day": _day_title(d), "page_id": row["id"],
             "kcal": num("kcal"), "p": num("p"), "c": num("c"), "f": num("f"),
             "exercise_type": txt("exercise_type"), "exercise_burn": num("exercise_burn"),
-            "tdee_est": num("tdee_est"), "deficit_actual": _deficit_val(p)}
+            "tdee_est": num("tdee_est"), "deficit_actual": _deficit_val(p),
+            "meals": _parse_meals(row["id"])}
 
 
 def foodlog_get_range(start_date: str, end_date: str = "") -> list | dict:
@@ -775,6 +813,20 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
     meals: JSON array of the FULL day's meals so far, each ["HH:MM","dish",kcal,p,c,f] — the server renders them as a clean table inside the day page (replacing the previous one, so edits/removals stay tidy). Pass the whole running list every time you log, not just the new meal.
     date=YYYY-MM-DD, default today."""
     d = day(date)
+    parsed_meals = None
+    if meals:
+        try:
+            import json as _j
+            data = _j.loads(meals) if isinstance(meals, str) else meals
+            parsed_meals = [[str(m[0]), str(m[1]), float(m[2]), float(m[3]),
+                             float(m[4]), float(m[5])] for m in data]
+            # totals computed from the meal table = single source of truth
+            kcal = round(sum(m[2] for m in parsed_meals))
+            p = round(sum(m[3] for m in parsed_meals), 1)
+            c = round(sum(m[4] for m in parsed_meals), 1)
+            f = round(sum(m[5] for m in parsed_meals), 1)
+        except Exception:
+            parsed_meals = None
     props = {}
     for k, v in (("kcal", kcal), ("p", p), ("c", c), ("f", f),
                  ("exercise_burn", exercise_burn), ("tdee_est", tdee_est)):
@@ -803,15 +855,9 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
         if not pid:
             return wrote
         bid = pid.replace("-", "")
-        rows = None
-        if meals:
-            try:
-                import json as _j
-                data = _j.loads(meals) if isinstance(meals, str) else meals
-                rows = [[str(m[0]), str(m[1]), m[2], m[3], m[4], m[5]] for m in data]
-            except Exception as e:
-                note_err[0] = f"meals parse: {e}"
-        if rows is not None:
+        if meals and parsed_meals is None:
+            note_err[0] = "meals parse failed (expect JSON [[time,item,kcal,p,c,f],...])"
+        if parsed_meals is not None:
             try:
                 kids = _notion("GET", f"/blocks/{bid}/children?page_size=100", None, "2022-06-28")
                 for b in kids.get("results", []):
@@ -819,14 +865,21 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
                         _notion("DELETE", f"/blocks/{b['id']}", None, "2022-06-28")
                     except Exception:
                         pass
-                tot = [round(sum(r[i] or 0 for r in rows), 1) for i in (2, 3, 4, 5)]
-                trows = [_row(["เวลา", "รายการ", "kcal", "p", "c", "f"], bold=True)]
-                trows += [_row(r) for r in rows]
-                trows.append(_row(["", "รวม", tot[0], tot[1], tot[2], tot[3]], bold=True))
-                _notion_write("PATCH", f"/blocks/{bid}/children",
-                              {"children": [{"object": "block", "type": "table",
-                                             "table": {"table_width": 6, "has_column_header": True,
-                                                       "has_row_header": False, "children": trows}}]})
+                if parsed_meals:  # empty list = all meals removed → leave page blank
+                    rows = [[m[0], m[1], round(m[2]), round(m[3], 1), round(m[4], 1), round(m[5], 1)]
+                            for m in parsed_meals]
+                    tot = [round(sum(r[i] for r in rows), 1) for i in (2, 3, 4, 5)]
+                    tot = [int(x) if x == int(x) else x for x in tot]
+                    trows = [_row(["เวลา", "รายการ", "kcal", "p", "c", "f"], bold=True)]
+                    trows += [_row([m[0], m[1], int(m[2]) if m[2] == int(m[2]) else m[2],
+                                    int(m[3]) if m[3] == int(m[3]) else m[3],
+                                    int(m[4]) if m[4] == int(m[4]) else m[4],
+                                    int(m[5]) if m[5] == int(m[5]) else m[5]]) for m in rows]
+                    trows.append(_row(["", "รวม", tot[0], tot[1], tot[2], tot[3]], bold=True))
+                    _notion_write("PATCH", f"/blocks/{bid}/children",
+                                  {"children": [{"object": "block", "type": "table",
+                                                 "table": {"table_width": 6, "has_column_header": True,
+                                                           "has_row_header": False, "children": trows}}]})
                 wrote.append("meals")
             except Exception as e:
                 note_err[0] = str(e)
@@ -942,8 +995,10 @@ def get_activity(activity_id: str, view: str = "summary",
 
 @mcp.tool()
 def foodlog_read(date: str = "", end_date: str = "") -> list | dict:
-    """Read the Notion FoodLog: one day (default today) or a range via end_date. Returns a list of compact rows (page_id, day, kcal, p, c, f, exercise, tdee_est, deficit_actual, sync) sorted by date — empty list = nothing logged."""
-    return foodlog_get_range(date, end_date or date)
+    """Read the Notion FoodLog. One day (default today) → a single object that ALSO includes `meals` (the per-meal table on that day's page: [time,item,kcal,p,c,f]) — read this before editing meals so nothing is lost across chats. A range (via end_date) → a list of compact daily rows sorted by date. Empty = nothing logged."""
+    if not end_date or end_date == date:
+        return foodlog_get(date)
+    return foodlog_get_range(date, end_date)
 
 
 def _weights_kg(wi):
