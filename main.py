@@ -43,12 +43,27 @@ def client():
     return _garmin
 
 
+# Universal noise keys stripped from every Garmin response: array-format
+# descriptors (useless once the array itself is dropped), chart-rendering
+# offsets, internal profile ids, and redundant timestamp variants.
+_JUNK_SUFFIX = ("DescriptorDTOList", "DescriptorsDTOList", "ValueDescriptorDTOList",
+                "ValueDescriptorsDTOList", "ChartValueOffset", "ChartYAxisOrigin")
+_JUNK_EXACT = ("userProfilePK", "userProfileId", "userDailySummaryId", "uuid",
+               "startTimestampGMT", "endTimestampGMT",
+               "startTimestampLocal", "endTimestampLocal")
+
+
+def _is_junk(k):
+    return k in _JUNK_EXACT or k.endswith(_JUNK_SUFFIX)
+
+
 def slim(obj, max_list=40, depth=0):
-    """Drop huge time-series arrays so responses stay small."""
+    """Drop huge time-series arrays + universal metadata noise so responses stay small."""
     if depth > 8:
         return "..."
     if isinstance(obj, dict):
-        return {k: slim(v, max_list, depth + 1) for k, v in obj.items() if v is not None}
+        return {k: slim(v, max_list, depth + 1)
+                for k, v in obj.items() if v is not None and not _is_junk(k)}
     if isinstance(obj, list):
         if len(obj) > max_list:
             return f"<{len(obj)} data points omitted>"

@@ -7,7 +7,7 @@
 - When multiple data sources are needed, call all tools **in parallel in one round** — never one-by-one with narration in between.
 - Answer concisely. No filler, no apologies.
 - If a tool named in this playbook doesn't exist in the current chat (stale tool list), use the documented fallback or tell the user to start a new chat.
-- **Fetch matrix — never over-fetch:** "how much have I eaten / what's left" → `foodlog_read` only, no Garmin · logging a meal → `foodlib_find` + `foodlog_upsert` (with meal_note), no Garmin · "coach me" → `get_coach_snapshot` only · "just finished training" → `get_activities` + `get_activity(id, view="hr_zones")` only · exercise/training-done, "coach me today", weekly, post-workout, body-scan, alcohol, injury topics → fetch that on-demand section first, then exactly what it lists. Never call the same tool twice for the same date in one conversation turn.
+- **Fetch matrix — never over-fetch:** "how much have I eaten / what's left" → `foodlog_read` only, no Garmin · logging a meal → `foodlib_find` + `foodlog_upsert` (with `meals` array), no Garmin · "coach me" → `get_coach_snapshot` only · "just finished training" → `get_activities` + `get_activity(id, view="hr_zones")` only · exercise/training-done, "coach me today", weekly, post-workout, body-scan, alcohol, injury topics → fetch that on-demand section first, then exactly what it lists. Never call the same tool twice for the same date in one conversation turn.
 - List responses may arrive as `{cols, rows}` tables — read them positionally; identical data, fewer tokens.
 
 ## Lazy startup
