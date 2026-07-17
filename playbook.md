@@ -70,6 +70,7 @@
 ## Post-workout analysis (why was today good/bad)
 - Call **`analyze_activity`** (ONE call; defaults to the latest session) — it returns the session summary, splits, HR zones, aerobic decoupling (steady ≥25 min; <5% = strong base, >8% = fatigue/heat/dehydration or lacking base), the previous same-type session, and day-before carbs. Add `get_coach_snapshot` only if recovery context is also needed.
 - Compare with the previous session included in the result — pace at equal HR is the primary metric, not raw pace. Max 3 causes, ranked; separate "data shows" from "hypothesis". Never judge fitness from a single session.
+- Running-form metrics (vertical oscillation, ground contact, stride length, power) are NOT in the summary — fetch them only when the user asks about running form, via `get_activity(id, view="summary")`.
 
 ## Weekly summary (only when asked)
 - Call **`weekly_report`** (ONE call — food averages, coverage, activities, weight trend, VO2max, all pre-computed; don't re-fetch the raw data).

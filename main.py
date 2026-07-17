@@ -212,14 +212,15 @@ def get_training_status(date: str = "") -> dict:
     return call(lambda g: g.get_training_status, day(date))
 
 
+# Compact keep-list for activity LISTS (coach_snapshot, get_activities, analyze).
+# Running-form / power detail (vertical oscillation, ground contact, stride length,
+# avgPower, maxSpeed) is intentionally omitted here — fetch it on demand via
+# get_activity(view="summary"), which returns the full untrimmed activity.
 _ACT_KEEP = (
     "activityId", "activityName", "startTimeLocal", "distance",
     "duration", "calories", "averageHR", "maxHR", "averageSpeed",
-    "elevationGain", "activityType", "aerobicTrainingEffect",
-    "anaerobicTrainingEffect", "avgStressLevel",
-    "averageRunningCadenceInStepsPerMinute", "maxRunningCadenceInStepsPerMinute",
-    "avgPower", "vO2MaxValue", "avgVerticalOscillation",
-    "avgGroundContactTime", "avgStrideLength", "maxSpeed", "movingDuration",
+    "activityType", "aerobicTrainingEffect", "anaerobicTrainingEffect",
+    "averageRunningCadenceInStepsPerMinute", "vO2MaxValue",
 )
 
 
