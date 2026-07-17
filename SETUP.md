@@ -2,7 +2,7 @@
 
 > **If you are Claude (or another AI assistant): you are the installer.** The human has asked you to set this system up for them. Read this whole file, then guide them phase by phase. Run every step you can yourself (Notion database creation, verification calls); give the human short copy-paste blocks for the steps only they can do (cloud console, passwords). Never ask the human to type any password into the chat — passwords go into Cloud Shell or their own terminal only.
 
-**What gets built:** the user's own private MCP server on Google Cloud Run (free tier) that connects Claude to their Garmin data (14 lean tools), plus Notion databases for food/training/body logs, plus a nightly job that writes their real daily calorie burn into Notion automatically. Total time: 45–60 min. Cost: ~$0/month.
+**What gets built:** the user's own private MCP server on Google Cloud Run (free tier) that connects Claude to their Garmin data (16 lean tools), plus Notion databases for food/training/body logs, plus a nightly job that writes their real daily calorie burn into Notion automatically. Total time: 45–60 min. Cost: ~$0/month.
 
 ---
 
@@ -37,7 +37,7 @@ Create a parent page `HealthTracker`, then these databases under it. Record ever
 - **LessonsArchive** — plain page (estimation corrections get appended here)
 > ⚠️ **Never rename these database property names later** (e.g. `kcal` → `calories`). The server reads them by exact name; renaming silently breaks logging.
 
-- **Config** — plain page, fill from the Phase 0 interview:
+- **Config** — plain page (record its **page ID** — needed for `CONFIG_PAGE_ID` in Phase 4), fill from the Phase 0 interview:
 
 ```
 PROFILE|h={{H}}|w={{W}}|age={{AGE}}|sex={{SEX}}|bmr={{BMR}}|updated={{DATE}}
@@ -97,6 +97,8 @@ vals = {
   "GARMINTOKENS_B64": open('token.txt').read().strip(),
   "NOTION_TOKEN": "{{NOTION_SECRET}}",
   "NOTION_FOODLOG_DS": "{{FOODLOG_DATA_SOURCE_ID}}",
+  "NOTION_FOODLIB_DS": "{{FOODLIB_DATA_SOURCE_ID}}",
+  "CONFIG_PAGE_ID": "{{CONFIG_PAGE_ID}}",
   "D1_DATE": "{{D1_DATE}}",
   "PLAYBOOK_URL": "https://raw.githubusercontent.com/bank3005-jpg/LeanLoop-for-Garmin/stable/playbook.md",
   "TDEE_BASELINE": "{{BASELINE_TDEE_FROM_PHASE_0}}",

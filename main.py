@@ -81,8 +81,23 @@ def _tabulate(obj):
     return obj
 
 
-_call_cache = {}
+_call_cache = {}  # key -> (ts, value, ttl_seconds)
 _usage = {}  # tool -> [calls, chars, cache_hits]
+
+
+def _cget(key):
+    import time as _t
+    hit = _call_cache.get(key)
+    if hit and _t.time() - hit[0] < hit[2]:
+        return hit[1]
+    return None
+
+
+def _cput(key, val, ttl):
+    import time as _t
+    _call_cache[key] = (_t.time(), val, ttl)
+    if len(_call_cache) > 800:
+        _call_cache.clear()
 
 
 def _bump(tool, result):
@@ -104,10 +119,10 @@ def call(fn, *args):
     key = (tool, args)
     cacheable = tool.startswith("get_")
     if cacheable:
-        hit = _call_cache.get(key)
-        if hit and _t.time() - hit[0] < 600:
-            _bump(tool, hit[1])[2] += 1
-            return hit[1]
+        hit = _cget(key)
+        if hit is not None:
+            _bump(tool, hit)[2] += 1
+            return hit
     try:
         r = _tabulate(slim(fn(client())(*args)))
     except Exception:
@@ -117,9 +132,7 @@ def call(fn, *args):
         except Exception as e:
             return {"error": str(e)}
     if cacheable and not (isinstance(r, dict) and "error" in r):
-        _call_cache[key] = (_t.time(), r)
-        if len(_call_cache) > 500:
-            _call_cache.clear()
+        _cput(key, r, 600)
     _bump(tool, r)
     return r
 
@@ -708,6 +721,12 @@ def foodlog_get(date: str = "") -> dict:
 def foodlog_get_range(start_date: str, end_date: str = "") -> list | dict:
     """Read FoodLog rows for a date range (inclusive, YYYY-MM-DD) in ONE call — compact rows sorted by date. Use this for weekly summaries instead of calling foodlog_get per day."""
     s, e = day(start_date), day(end_date)
+    _today = date.today().isoformat()
+    _ck = ("foodlog", s, e)
+    _cached = _cget(_ck)
+    if _cached is not None:
+        _bump("foodlog_read", _cached)[2] += 1
+        return _cached
     flt = {"filter": {"and": [
         {"property": "date", "date": {"on_or_after": s}},
         {"property": "date", "date": {"on_or_before": e}},
@@ -739,6 +758,8 @@ def foodlog_get_range(start_date: str, end_date: str = "") -> list | dict:
                     "tdee_est": num("tdee_est"), "deficit_actual": _deficit_val(p),
                     "sync": (((p.get("sync") or {}).get("select")) or {}).get("name")})
     out.sort(key=lambda x: x["date"] or "")
+    _cput(_ck, out, 21600 if e < _today else 30)
+    _bump("foodlog_read", out)
     return out
 
 
@@ -747,8 +768,9 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
                    c: float | None = None, f: float | None = None,
                    exercise_type: str | None = None,
                    exercise_burn: float | None = None,
-                   tdee_est: float | None = None) -> dict:
-    """Create or update the Notion FoodLog row for a date (one row per day, exact match — never creates duplicates). Only provided fields are written; omitted fields stay unchanged. date=YYYY-MM-DD, default today."""
+                   tdee_est: float | None = None,
+                   meal_note: str | None = None) -> dict:
+    """Create or update the Notion FoodLog row for a date (one row per day, exact match — never creates duplicates). Only provided fields are written; omitted fields stay unchanged. meal_note: one-line meal record "HH:MM dish · kcal · P/C/F" — appended into the day page so the meal history is never lost. date=YYYY-MM-DD, default today."""
     d = day(date)
     props = {}
     for k, v in (("kcal", kcal), ("p", p), ("c", c), ("f", f),
@@ -757,17 +779,32 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
             props[k] = {"number": v}
     if exercise_type is not None:
         props["exercise_type"] = {"rich_text": [{"text": {"content": exercise_type[:200]}}]}
-    if not props:
+    if not props and not meal_note:
         return {"error": "no fields provided"}
+    for _k in [k for k in list(_call_cache) if isinstance(k, tuple) and k and k[0] == "foodlog"]:
+        _call_cache.pop(_k, None)
+
+    def _note(pid, wrote):
+        if meal_note:
+            try:
+                _notion_write("PATCH", f"/blocks/{pid}/children",
+                              {"children": [{"object": "block", "type": "bulleted_list_item",
+                                             "bulleted_list_item": {"rich_text": [
+                                                 {"text": {"content": meal_note[:300]}}]}}]})
+                wrote.append("meal_note")
+            except Exception:
+                pass
+        return wrote
     if any(k in props for k in ("kcal", "p", "c", "f")) and "tdee_est" not in props:
         props["sync"] = {"select": {"name": "pending"}}
 
     try:
         row = _find_row(d)
         if row:
-            _notion_write("PATCH", "/pages/" + row["id"], {"properties": props})
+            if props:
+                _notion_write("PATCH", "/pages/" + row["id"], {"properties": props})
             return {"date": d, "status": "updated", "page_id": row["id"],
-                    "wrote": list(props)}
+                    "wrote": _note(row["id"], list(props))}
         title = _day_title(d)
         full_props = {"day": {"title": [{"text": {"content": title}}]},
                       "date": {"date": {"start": d}}, **props}
@@ -780,7 +817,8 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
                         {"parent": {"type": "data_source_id",
                                     "data_source_id": FOODLOG_DS},
                          "properties": full_props}, "2025-09-03")
-        return {"date": d, "status": "created", "page_id": r.get("id"), "day": title}
+        return {"date": d, "status": "created", "page_id": r.get("id"), "day": title,
+                "wrote": _note(r.get("id"), list(props))}
     except Exception as e:
         return {"error": str(e)}
 
@@ -1043,6 +1081,73 @@ def calibrate_report(days: int = 14) -> dict:
         out["bias_meaning"] = "positive = real intake ~ that many kcal/day HIGHER than logged; add it to future estimates"
     else:
         out["weight"] = {"points": len(pts), "note": "not enough weigh-ins for a trend"}
+    return out
+
+
+@mcp.tool()
+def get_config() -> str:
+    """The user's Config page (profile, kcal/macro targets, carb tiers, calibration, common labels, training phase) as plain text — served fast from this server with a 10-min cache. Use this instead of fetching Config through the Notion connector."""
+    pid = os.environ.get("CONFIG_PAGE_ID", "")
+    if not pid:
+        return "CONFIG_PAGE_ID is not set on this server — fetch the Config page via the Notion connector instead."
+    c = _cget(("config",))
+    if c is not None:
+        _bump("get_config", c)[2] += 1
+        return c
+    try:
+        r = _notion("GET", f"/blocks/{pid}/children?page_size=100", None, "2022-06-28")
+        lines = []
+        for b in r.get("results", []):
+            t = b.get("type", "")
+            rt = (b.get(t) or {}).get("rich_text") or []
+            txt = "".join(x.get("plain_text", "") for x in rt)
+            if txt:
+                lines.append(txt)
+        out = "\n".join(lines) or "(Config page is empty)"
+    except Exception as e:
+        return f"config fetch failed: {e}"
+    _cput(("config",), out, 600)
+    _bump("get_config", out)
+    return out
+
+
+@mcp.tool()
+def foodlib_find(query: str) -> list | dict:
+    """Search the user's FoodLib by dish name (contains match, max 10). Returns stored serving/kcal/macros to reuse for repeated dishes — much faster than searching via the Notion connector. Empty list = not in the library."""
+    ds = os.environ.get("NOTION_FOODLIB_DS", "")
+    if not ds:
+        return {"error": "NOTION_FOODLIB_DS is not set on this server — search FoodLib via the Notion connector instead."}
+    q = query.strip()
+    ck = ("foodlib", q.lower())
+    c = _cget(ck)
+    if c is not None:
+        _bump("foodlib_find", c)[2] += 1
+        return c
+    flt = {"filter": {"property": "name", "title": {"contains": q}}, "page_size": 10}
+    try:
+        try:
+            r = _notion("POST", f"/databases/{ds}/query", flt, "2022-06-28")
+        except Exception:
+            r = _notion("POST", f"/data_sources/{ds}/query", flt, "2025-09-03")
+    except Exception as e:
+        return {"error": str(e)}
+    out = []
+    for row in r.get("results", []):
+        p = row.get("properties", {})
+
+        def num(k):
+            return (p.get(k) or {}).get("number")
+
+        def txt(k):
+            rt = (p.get(k) or {}).get("rich_text") or []
+            return "".join(t.get("plain_text", "") for t in rt) or None
+
+        title = (p.get("name") or {}).get("title") or []
+        out.append({"name": "".join(t.get("plain_text", "") for t in title),
+                    "serving": txt("serving"), "kcal": num("kcal"), "p": num("p"),
+                    "c": num("c"), "f": num("f"), "notes": txt("notes")})
+    _cput(ck, out, 600)
+    _bump("foodlib_find", out)
     return out
 
 
