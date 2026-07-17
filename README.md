@@ -9,16 +9,25 @@
 [![Cloud Run](https://img.shields.io/badge/Runs%20on-Google%20Cloud%20Run-4285F4?logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](requirements.txt)
 
-Your own MCP server connects Claude to your **Garmin** wearable data (16 lean tools) and your **Notion** workspace. A nightly job writes your *real* measured calorie burn into your food log — so your deficit numbers come from your body, not from generic formulas — and a built-in calibration loop checks them against your actual scale weight every two weeks.
+### Why LeanLoop?
 
-> Chat with Claude like a coach who has actually seen your data:
-> *"How did I sleep?" · "Coach me today" · "Why did my run feel bad?" ·* 📸 *[photo of lunch]*
+Losing weight is a calorie deficit — but a deficit run **blind** burns muscle, not just fat. Lose muscle and your daily burn (TDEE) drops, so you have to eat *even less* to keep losing. That's the slow-starvation spiral that makes most diets miserable and short-lived.
+
+LeanLoop keeps you on the healthy side of that line by giving Claude three things at once:
+
+- 🍽️ **What you eat** — snap a photo or just type it; calories **and macros** land in Notion, and every meal is kept with its time so you can see your real eating habits, not just a daily number.
+- 🔥 **What you *actually* burn** — your Garmin measures it live, every day (workouts, steps, all-day movement), so your deficit is based on your real body — not a one-size-fits-all formula that's wrong for you.
+- 🌙 **How you're recovering** — sleep, HRV, stress and body battery feed the coaching, so "train hard or rest today?" fits the day you're actually having.
+
+Because all of it already flows to Claude, there's **no more screenshotting dashboards into chat**. Just ask.
+
+> *"Coach me today" · "How did I sleep?" · "Why did my run feel bad?" · "What are my eating patterns this week?" ·* 📸 *[photo of lunch]*
 
 ## ✨ Features
 
 | | Feature | What it does |
 |---|---|---|
-| 📸 | **Photo food logging** | Send a meal photo → macros estimated with a documented protocol (reference-object scaling, hidden oil/sauce accounting) → auto-saved to Notion |
+| 📸 | **Photo (or text) food logging** | Snap a meal or type it → calories & macros estimated and auto-saved to Notion, with the full per-meal history (time + item) kept on the day's page for habit analysis |
 | 🌙 | **Automatic day close** | Every night your server pulls the finished day's true TDEE from Garmin and writes TDEE + workouts into your log (your deficit column recalculates itself instantly — it's a Notion formula) — self-heals 3 days back, colored sync tags show status at a glance |
 | 🔥 | **Progress you can see** | Cumulative deficit (≈ kg of fat) updated nightly right on your Notion food log |
 | 🏃 | **Coaching on real data** | One-call readiness verdicts, post-workout analysis (splits, HR zones, sleep context), weekly reviews, injury pattern tracking |
