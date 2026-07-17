@@ -16,7 +16,7 @@ Collect and compute:
 4. Computer OS: Windows or macOS (needed in Phase 3)
 5. Program start date (today is fine) → this becomes `D1_DATE`
 6. Compute and confirm with the user: BMR (Mifflin-St Jeor), baseline TDEE (BMR × activity factor 1.2–1.4), targets: kcal range, protein 1.6–2.2 g/kg, fat ≥0.8 g/kg, carbs = remainder (3 tiers: heavy/medium/light for carb cycling), deficit target if cutting (300–600).
-7. Optional but valuable: ask them to measure their hand (wrist→middle fingertip, palm width) — used to scale food photos.
+
 
 ## Phase 1 — Prerequisites (human checks)
 
@@ -41,7 +41,6 @@ Create a parent page `HealthTracker`, then these databases under it. Record ever
 
 ```
 PROFILE|h={{H}}|w={{W}}|age={{AGE}}|sex={{SEX}}|bmr={{BMR}}|updated={{DATE}}
-HAND|{{hand measurements or "not measured"}}
 GOAL|kcal={{RANGE}}|p={{P}}g|c=carb_cycle_FUEL_FOR_TOMORROW(heavy={{CH}},medium={{CM}},light={{CL}})|f={{F}}g|deficit_target={{DEF}}
 TDEE|baseline={{TDEE}}(bmr×{{FACTOR}})|training_day=baseline+adjusted_burn
 CALIBRATION|bias_kcal_per_day=not_measured|last_calibrated=—

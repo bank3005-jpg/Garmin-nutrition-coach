@@ -784,16 +784,19 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
     for _k in [k for k in list(_call_cache) if isinstance(k, tuple) and k and k[0] == "foodlog"]:
         _call_cache.pop(_k, None)
 
+    note_err = [None]
+
     def _note(pid, wrote):
-        if meal_note:
+        if meal_note and pid:
+            bid = pid.replace("-", "")
             try:
-                _notion_write("PATCH", f"/blocks/{pid}/children",
+                _notion_write("PATCH", f"/blocks/{bid}/children",
                               {"children": [{"object": "block", "type": "bulleted_list_item",
                                              "bulleted_list_item": {"rich_text": [
                                                  {"text": {"content": meal_note[:300]}}]}}]})
                 wrote.append("meal_note")
-            except Exception:
-                pass
+            except Exception as e:
+                note_err[0] = str(e)
         return wrote
     if any(k in props for k in ("kcal", "p", "c", "f")) and "tdee_est" not in props:
         props["sync"] = {"select": {"name": "pending"}}
@@ -803,8 +806,11 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
         if row:
             if props:
                 _notion_write("PATCH", "/pages/" + row["id"], {"properties": props})
-            return {"date": d, "status": "updated", "page_id": row["id"],
-                    "wrote": _note(row["id"], list(props))}
+            res = {"date": d, "status": "updated", "page_id": row["id"],
+                   "wrote": _note(row["id"], list(props))}
+            if note_err[0]:
+                res["meal_note_error"] = note_err[0]
+            return res
         title = _day_title(d)
         full_props = {"day": {"title": [{"text": {"content": title}}]},
                       "date": {"date": {"start": d}}, **props}
@@ -817,8 +823,11 @@ def foodlog_upsert(date: str = "", kcal: float | None = None, p: float | None = 
                         {"parent": {"type": "data_source_id",
                                     "data_source_id": FOODLOG_DS},
                          "properties": full_props}, "2025-09-03")
-        return {"date": d, "status": "created", "page_id": r.get("id"), "day": title,
-                "wrote": _note(r.get("id"), list(props))}
+        res = {"date": d, "status": "created", "page_id": r.get("id"), "day": title,
+               "wrote": _note(r.get("id"), list(props))}
+        if note_err[0]:
+            res["meal_note_error"] = note_err[0]
+        return res
     except Exception as e:
         return {"error": str(e)}
 
