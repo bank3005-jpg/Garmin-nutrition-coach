@@ -47,6 +47,8 @@ Read https://github.com/bank3005-jpg/LeanLoop-for-Garmin/blob/stable/SETUP.md an
 
 Claude interviews you (goals, body stats), creates your Notion databases, walks you through the cloud steps, then adds your server as a second connector and loads the coaching rules into the Project. **45–60 minutes, one time.** After setup, everyday food logging runs fine on **Sonnet Low**.
 
+> ⚠️ **Requires Claude Pro (or Max/Team/Enterprise).** LeanLoop runs on **two custom connectors at once** — Notion (your food/training/body logs) and your Garmin server (live wearable data). The **Free plan allows only one** custom connector, which isn't enough for the full loop. Pro also gives the usage headroom for daily photo food-logging. You do *not* need any paid Notion or Garmin plan — their free tiers are fine.
+
 **Prerequisites:** a Garmin watch · Notion account (free) · Google account with billing enabled (stays within free tier) · **Claude Pro** (or Max/Team — needs two custom connectors at once; Free allows only one) · Windows or macOS computer for one step.
 
 ## 🏗️ Architecture
